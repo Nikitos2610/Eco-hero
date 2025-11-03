@@ -1257,7 +1257,7 @@
             touchRight.removeEventListener('touchstart', handleTouchRightStart);
             touchRight.removeEventListener('touchend', handleTouchRightEnd);
             touchJump.removeEventListener('touchstart', handleTouchJumpStart);
-            touchJump.removeEventListener('touchend', handleTouchJumpEnd);
+            // Removed: touchJump.removeEventListener('touchend', handleTouchJumpEnd); // This line caused the error
 
             function handleTouchLeftStart() { keys['ArrowLeft'] = true; keys['KeyA'] = true; }
             function handleTouchLeftEnd() { keys['ArrowLeft'] = false; keys['KeyA'] = false; }
