@@ -1,40 +1,4 @@
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -44,14 +8,24 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@600;700&display=swap');
         body { margin: 0; background: #e0f7fa; font-family: 'Inter', Arial, sans-serif; color: #333; }
-        #game-container { position: relative; width: 100%; max-width: 1000px; height: auto; aspect-ratio: 5 / 3; margin: 30px auto; border: 3px solid #4caf50; overflow: hidden; background: #a5d6a7; }
+        #game-container { 
+            position: relative; 
+            width: 100%; 
+            max-width: 1000px; 
+            height: auto; 
+            aspect-ratio: 5 / 3; 
+            margin: 30px auto; 
+            border: 3px solid #4caf50; 
+            overflow: hidden; 
+            background: #a5d6a7; 
+        }
         canvas { display: block; width: 100%; height: auto; }
         #score { position: absolute; top: 10px; left: 10px; font-size: 28px; color: #fff; text-shadow: 1px 1px 2px #000; background: rgba(0,0,0,0.6); padding: 8px; border-radius: 20px; font-weight: 600; }
         #level { position: absolute; top: 10px; right: 10px; font-size: 28px; color: #fff; text-shadow: 1px 1px 2px #000; background: rgba(0,0,0,0.6); padding: 8px; border-radius: 20px; font-weight: 600; }
         #health-bar { position: absolute; top: 50px; left: 10px; width: 250px; height: 25px; background: #ddd; border: 3px solid #000; border-radius: 12px; }
         #health-fill { height: 100%; background: linear-gradient(to right, red, yellow, green); border-radius: 10px; transition: width 0.3s; }
         #health-text { position: absolute; top: 50px; left: 10px; width: 250px; text-align: center; font-size: 18px; color: #000; font-weight: 600; }
-        #quiz { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(10px); padding: 20px 15px 15px; border-radius: 20px; display: none; text-align: center; z-index: 10; font-size: 18px; border: 1px solid rgba(255, 255, 255, 0.2); animation: scaleIn 0.5s ease-out; width: 80%; max-width: 400px; }
+        #quiz { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(10px); padding: 20px 15px 15px; border-radius: 20px; display: none; text-align: center; z-index: 10; font-size: 18px; border: 1px solid rgba(255, 255, 255, 0.2); animation: scaleIn 0.5s ease-out; width: 80%; max-width: 400px; box-sizing: border-box; }
         #quiz.final #skip-quiz { display: none; }
         #quiz h2 { background: linear-gradient(45deg, #4caf50, #2196f3); -webkit-background-clip: text; background-clip: text; color: #333 !important; animation: pulse 1.5s infinite; text-shadow: 1px 1px 2px rgba(0,0,0,0.7); margin-top: 0; }
         #quiz p { color: #333; font-weight: 600; text-shadow: 1px 1px 2px rgba(0,0,0,0.7); }
@@ -63,29 +37,83 @@
         #quiz-timer.warning #quiz-timer-fill { background: #f44336; }
         #quiz-timer-fill { height: 100%; background: linear-gradient(to right, #2196f3, #4caf50); border-radius: 3px; transition: width 0.1s; }
         #quiz-timer-text { font-size: 12px; color: #333; font-weight: 600; text-shadow: 1px 1px 2px rgba(0,0,0,0.7); margin: 5px 0; }
-        #end-screen { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(10px); padding: 30px; border-radius: 20px; display: none; text-align: center; z-index: 10; font-size: 24px; color: #333; border: 1px solid rgba(255, 255, 255, 0.2); width: 80%; max-width: 400px; }
-        #end-screen h2, #end-screen p { background: linear-gradient(45deg, #4caf50, #2196f3); -webkit-background-clip: text; background-clip: text; color: #333 !important; animation: pulse 1.5s infinite; text-shadow: 1px 1px 2px rgba(0,0,0,0.7); }
-        #end-screen button { margin-top: 20px; padding: 15px 30px; font-size: 22px; font-weight: 700; color: #fff; background: linear-gradient(45deg, #00d4ff, #ff4081); border: none; border-radius: 12px; box-shadow: 0 0 15px rgba(0, 212, 255, 0.5), 0 0 30px rgba(255, 64, 129, 0.3); cursor: pointer; transition: transform 0.2s, box-shadow 0.3s, background 0.3s; animation: neonPulse 2s infinite ease-in-out; }
-        #end-screen button:hover { transform: scale(1.1); box-shadow: 0 0 25px rgba(0, 212, 255, 0.7), 0 0 50px rgba(255, 64, 129, 0.5); background: linear-gradient(45deg, #ff4081, #00d4ff); }
-        #pause-screen { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(10px); padding: 30px; border-radius: 20px; display: none; text-align: center; z-index: 10; font-size: 28px; color: #333; border: 1px solid rgba(255, 255, 255, 0.2); width: 80%; max-width: 400px; }
+
+        /* ЕДИНЫЙ СТИЛЬ ДЛЯ ПОБЕДЫ И ПРОИГРЫША */
+        #end-screen, #win-screen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(10px);
+            padding: 30px;
+            border-radius: 20px;
+            display: none;
+            text-align: center;
+            z-index: 100;
+            font-size: 24px;
+            color: #333;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            width: 80%;
+            max-width: 400px;
+            box-sizing: border-box;
+            animation: scaleIn 0.5s ease-out;
+        }
+        #end-screen h2, #win-screen h2,
+        #end-screen p, #win-screen p,
+        #end-screen ul, #win-screen ul {
+            background: linear-gradient(45deg, #4caf50, #2196f3);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent !important;
+            animation: pulse 1.5s infinite;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+            margin: 10px 0;
+        }
+        #win-screen ul {
+            padding-left: 20px;
+            text-align: left;
+            font-size: 18px;
+            line-height: 1.5;
+        }
+        #win-screen li { margin: 8px 0; }
+        #end-screen button, #win-screen button {
+            margin-top: 20px;
+            padding: 15px 30px;
+            font-size: 22px;
+            font-weight: 700;
+            color: #fff;
+            background: linear-gradient(45deg, #00d4ff, #ff4081);
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.5), 0 0 30px rgba(255, 64, 129, 0.3);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.3s, background 0.3s;
+            animation: neonPulse 2s infinite ease-in-out;
+        }
+        #end-screen button:hover, #win-screen button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 25px rgba(0, 212, 255, 0.7), 0 0 50px rgba(255, 64, 129, 0.5);
+            background: linear-gradient(45deg, #ff4081, #00d4ff);
+        }
+
+        #pause-screen {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(10px); padding: 30px; border-radius: 20px; display: none; text-align: center; z-index: 10; font-size: 28px; color: #333; border: 1px solid rgba(255, 255, 255, 0.2); width: 80%; max-width: 400px; box-sizing: border-box; }
         #pause-screen h2, #pause-screen p { background: linear-gradient(45deg, #4caf50, #2196f3); -webkit-background-clip: text; background-clip: text; color: #333 !important; animation: pulse 1.5s infinite; text-shadow: 1px 1px 2px rgba(0,0,0,0.7); }
         #pause-screen button { margin-top: 20px; padding: 15px 30px; font-size: 22px; font-weight: 700; color: #fff; background: linear-gradient(45deg, #00d4ff, #ff4081); border: none; border-radius: 12px; box-shadow: 0 0 15px rgba(0, 212, 255, 0.5), 0 0 30px rgba(255, 64, 129, 0.3); cursor: pointer; transition: transform 0.2s, box-shadow 0.3s, background 0.3s; animation: neonPulse 2s infinite ease-in-out; }
         #pause-screen button:hover { transform: scale(1.1); box-shadow: 0 0 25px rgba(0, 212, 255, 0.7), 0 0 50px rgba(255, 64, 129, 0.5); background: linear-gradient(45deg, #ff4081, #00d4ff); }
-        #win-screen { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: linear-gradient(135deg, rgba(76, 175, 80, 0.5), rgba(33, 150, 243, 0.5)); backdrop-filter: blur(12px); padding: 40px; border-radius: 20px; display: none; text-align: center; z-index: 10; font-size: 26px; line-height: 1.5; width: 70%; max-width: 400px; color: #333; border: 1px solid rgba(255, 255, 255, 0.3); animation: scaleIn 0.5s ease-out; overflow-y: auto; max-height: 90vh; }
-        #win-screen h2, #win-screen p, #win-screen ul { color: #333; text-shadow: 1px 1px 2px rgba(0,0,0,0.7); }
-        #win-screen button { margin-top: 20px; padding: 15px 30px; font-size: 22px; font-weight: 700; color: #fff; background: linear-gradient(45deg, #00d4ff, #ff4081); border: none; border-radius: 12px; box-shadow: 0 0 15px rgba(0, 212, 255, 0.5), 0 0 30px rgba(255, 64, 129, 0.3); cursor: pointer; transition: transform 0.2s, box-shadow 0.3s, background 0.3s; animation: neonPulse 2s infinite ease-in-out; }
-        #win-screen button:hover { transform: scale(1.1); box-shadow: 0 0 25px rgba(0, 212, 255, 0.7), 0 0 50px rgba(255, 64, 129, 0.5); background: linear-gradient(45deg, #ff4081, #00d4ff); }
-        #intro-screen { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(10px); padding: 20px; border-radius: 20px; text-align: center; z-index: 100; font-size: 18px; line-height: 1.5; width: 80%; max-width: 400px; max-height: 400px; overflow-y: auto; animation: fadeIn 0.5s; display: block; color: #333; border: 1px solid rgba(255, 255, 255, 0.2); }
+
+        #intro-screen { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(10px); padding: 20px; border-radius: 20px; text-align: center; z-index: 100; font-size: 18px; line-height: 1.5; width: 80%; max-width: 400px; max-height: 400px; overflow-y: auto; animation: fadeIn 0.5s; display: block; color: #333; border: 1px solid rgba(255, 255, 255, 0.2); box-sizing: border-box; }
         #intro-screen h2, #intro-screen p { background: linear-gradient(45deg, #4caf50, #2196f3); -webkit-background-clip: text; background-clip: text; color: #333 !important; animation: pulse 1.5s infinite; text-shadow: 1px 1px 2px rgba(0,0,0,0.7); }
         #intro-screen button { margin-top: 20px; padding: 15px 30px; font-size: 22px; background: linear-gradient(45deg, #4caf50, #2196f3); color: white; border: none; border-radius: 10px; font-weight: 600; transition: transform 0.2s; }
         #intro-screen button:hover { transform: scale(1.05); }
         #touch-controls { 
-            display: none; /* Скрываем кнопки по умолчанию для десктопов */
+            display: none; 
             position: relative;
             margin: 10px auto;
             width: fit-content;
             justify-content: center;
-            gap: 20px; /* Увеличено расстояние между кнопками */
+            gap: 20px;
         }
         #touch-controls button { 
             padding: 20px; 
@@ -102,38 +130,36 @@
             touch-action: manipulation; 
             box-shadow: 0 0 10px rgba(0,0,0,0.3);
             transition: transform 0.2s;
-            user-select: none; /* Предотвращает контекстное меню при долгом нажатии */
+            user-select: none;
         }
         #touch-controls button:active { 
             transform: scale(0.95); 
         }
-        @media (max-width: 600px) {
-            #quiz, #end-screen, #pause-screen, #intro-screen {
-                font-size: 12px; /* Уменьшенный шрифт для мобильных */
-                padding: 10px; /* Уменьшенные отступы */
-                width: 90%; /* Уменьшенная ширина */
-                max-width: 300px; /* Ограничение максимальной ширины */
-            }
-            #win-screen {
-                font-size: 12px; /* Уменьшенный шрифт для мобильных */
-                padding: 10px; /* Уменьшенные отступы */
-                width: 80%; /* Уменьшенная ширина */
-                max-width: 300px; /* Ограничение максимальной ширины */
-            }
-            #quiz button, #end-screen button, #win-screen button, #pause-screen button, #intro-screen button {
-                font-size: 10px; /* Уменьшенный размер шрифта кнопок */
-                padding: 6px 12px; /* Уменьшенные отступы кнопок */
-            }
-            #quiz-timer { height: 5px; } /* Уменьшенная высота таймера */
-            #quiz-timer-text { font-size: 8px; } /* Уменьшенный шрифт текста таймера */
-            #score, #level { font-size: 16px; } /* Уменьшенный шрифт для очков и уровня */
-            #health-bar, #health-text { width: 120px; } /* Уменьшенная ширина полоски здоровья */
-            #health-text { font-size: 12px; } /* Уменьшенный шрифт текста здоровья */
-            #message { font-size: 16px; padding: 10px; } /* Уменьшенные размеры уведомлений */
-            #touch-controls { 
-                display: flex; /* Показываем кнопки только на мобильных устройствах */
-            }
+        #message { 
+            position: absolute; 
+            top: 150px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            background: rgba(255, 255, 255, 0.5); 
+            backdrop-filter: blur(10px); 
+            padding: 15px 20px; 
+            border-radius: 20px; 
+            display: none; 
+            font-size: 24px; 
+            z-index: 15; 
+            color: #333; 
+            font-weight: 700; 
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7); 
+            animation: pulse 1.5s infinite; 
+            border: 1px solid rgba(255, 255, 255, 0.2); 
+            max-width: 90%; 
+            box-sizing: border-box; 
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis;
         }
+        #error { position: absolute; top: 80px; left: 10px; color: #d32f2f; font-size: 18px; font-family: 'Inter', Arial, sans-serif; font-weight: 600; background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(10px); padding: 10px; border-radius: 20px; text-shadow: 1px 1px 2px rgba(0,0,0,0.7); }
+
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
         @keyframes scaleIn { from { transform: translate(-50%, -50%) scale(0.8); opacity: 0; } to { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
@@ -142,8 +168,26 @@
             0%, 100% { box-shadow: 0 0 15px rgba(0, 212, 255, 0.5), 0 0 30px rgba(255, 64, 129, 0.3); }
             50% { box-shadow: 0 0 20px rgba(0, 212, 255, 0.7), 0 0 40px rgba(255, 64, 129, 0.4); }
         }
-        #message { position: absolute; top: 150px; left: 50%; transform: translateX(-50%); background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(10px); padding: 15px; border-radius: 20px; display: none; font-size: 24px; z-index: 15; color: #333; font-weight: 700; text-shadow: 1px 1px 2px rgba(0,0,0,0.7); animation: pulse 1.5s infinite; border: 1px solid rgba(255, 255, 255, 0.2); }
-        #error { position: absolute; top: 80px; left: 10px; color: #d32f2f; font-size: 18px; font-family: 'Inter', Arial, sans-serif; font-weight: 600; background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(10px); padding: 10px; border-radius: 20px; text-shadow: 1px 1px 2px rgba(0,0,0,0.7); }
+
+        @media (max-width: 600px) {
+            #quiz, #end-screen, #pause-screen, #intro-screen, #win-screen {
+                font-size: 14px; padding: 20px; width: 90%; max-width: 300px;
+            }
+            #end-screen h2, #win-screen h2 { font-size: 20px; }
+            #end-screen p, #win-screen p, #win-screen ul { font-size: 16px; }
+            #win-screen li { font-size: 14px; }
+            #end-screen button, #win-screen button, #intro-screen button {
+                font-size: 18px; padding: 12px 24px;
+            }
+            #quiz button { font-size: 12px; padding: 8px 16px; }
+            #quiz-timer { height: 6px; }
+            #quiz-timer-text { font-size: 10px; }
+            #score, #level { font-size: 18px; }
+            #health-bar, #health-text { width: 140px; }
+            #health-text { font-size: 14px; }
+            #message { font-size: 18px; padding: 12px; top: 130px; }
+            #touch-controls { display: flex; }
+        }
     </style>
 </head>
 <body>
@@ -187,7 +231,7 @@
         </div>
         <div id="intro-screen">
             <h2>Добро пожаловать, Эко-Герой!</h2>
-            <p>Эко-Герой, спасай энергию! Собирай батарейки (жёлтые монеты), избегай утечек (красные батарейки) и отвечай на вопросы. Прыгай (пробел), двигайся (стрелки), побеждай!</p>
+            <p>Эко-Герой, спасай энергию! Собирай батарейки (жёлтые монеты), избегай утечек (красные круги) и отвечай на вопросы. Прыгай (W/пробел), двигайся (WASD/стрелки), побеждай!</p>
             <button onclick="startGame()">Начать игру</button>
         </div>
         <div id="message"></div>
@@ -198,19 +242,20 @@
         <button id="touch-left">←</button>
         <button id="touch-right">→</button>
     </div>
+
     <script type="text/javascript">
         try {
-            // Константы
+            // === КОНСТАНТЫ ===
             const MAX_LEVEL = 6;
-            const MAX_COINS = 8;
+            const MAX_COINS = 7;  // Ещё снижено
             const MAX_MONSTERS = 7;
             const MAX_POWERUPS = 3;
-            const QUIZ_DURATION = 15000; // мс
+            const QUIZ_DURATION = 15000;
             const GRAVITY = 0.4;
-            const COIN_LIFETIME = 600; // кадры
+            const COIN_LIFETIME = 600;
             const MONSTER_LIFETIME_MIN = 900;
             const MONSTER_LIFETIME_MAX = 1500;
-            const BOSS_LIFETIME = { 4: 1500, 5: 1200 };
+            const BOSS_LIFETIME = { 4: 1100, 5: 1000 };
             const SHIELD_DURATION = 350;
             const FLASH_DURATION = 18;
             const MESSAGE_DURATION = 180;
@@ -218,13 +263,12 @@
             const TEACHER_LIFETIME = 900;
             const TEACHER_LIFETIME_QUIZ_MIN = 300;
             const COLLISION_TOLERANCE = 15;
-            // Инициализация DOM-элементов
+
+            // === DOM ===
             const canvas = document.getElementById('canvas');
             const ctx = canvas.getContext('2d');
-            if (!ctx) {
-                showError('Ваш браузер не поддерживает Canvas. Попробуйте другой браузер.');
-                throw new Error('Не удалось инициализировать Canvas');
-            }
+            if (!ctx) throw new Error('Canvas не поддерживается');
+
             const bgCanvas = document.createElement('canvas');
             bgCanvas.width = canvas.width;
             bgCanvas.height = canvas.height;
@@ -233,6 +277,7 @@
             staticBgCanvas.width = canvas.width;
             staticBgCanvas.height = canvas.height;
             const staticBgCtx = staticBgCanvas.getContext('2d');
+
             const scoreEl = document.getElementById('score');
             const levelEl = document.getElementById('level');
             const healthFill = document.getElementById('health-fill');
@@ -258,11 +303,13 @@
             const touchLeft = document.getElementById('touch-left');
             const touchRight = document.getElementById('touch-right');
             const touchJump = document.getElementById('touch-jump');
-            // Инициализация переменных
+
+            // === ПЕРЕМЕННЫЕ ===
             let score = 0, lastScore = -1;
             let level = 1, lastLevel = -1;
             let health = 100, lastHealth = -1;
             let gameOver = false;
+            let gameWon = false;
             let gameStarted = false;
             let quizActive = false;
             let finalQuiz = false;
@@ -292,11 +339,15 @@
             let paused = false;
             let usedQuizIndices = [];
             let startAnimationTimer = 0;
+            let endScreenShown = false;
+            let winScreenShown = false;
+
             const platforms = [
                 { x: 0, y: 550, width: 1000, height: 50 },
                 { x: 250, y: 400, width: 250, height: 25 },
                 { x: 600, y: 350, width: 200, height: 25 }
             ];
+
             const quizzes = [
                 { question: 'Что лучше сделать с компьютером на ночь?', options: ['Оставить включенным', 'Выключить полностью', 'Оставить в спящем режиме'], correct: 1, fact: 'Выключение экономит энергию!' },
                 { question: 'Какая лампочка сберегает энергию?', options: ['Обычная накаливания', 'Светодиодная', 'Галогенная'], correct: 1, fact: 'Светодиодные лампочки тратят меньше электричества!' },
@@ -309,80 +360,67 @@
                 { question: 'Как экономить энергию в школе?', options: ['Оставить проектор включенным', 'Выключать технику после урока', 'Использовать больше ламп'], correct: 1, fact: 'Выключение техники после уроков экономит энергию!' },
                 { question: 'Что лучше для планеты?', options: ['Одноразовые батарейки', 'Перезаряжаемые аккумуляторы', 'Оставить без батареек'], correct: 1, fact: 'Перезаряжаемые аккумуляторы снижают отходы и энергопотребление!' }
             ];
+
             const finalQuizQuestion = {
                 question: 'Как лучше всего экономить энергию дома?',
                 options: ['Оставлять свет включенным', 'Выключать свет и устройства', 'Использовать больше ламп'],
                 correct: 1,
                 fact: 'Выключайте свет и устройства — это простой способ сберечь энергию!'
             };
-            // Обработка XLSX файлов
-            var gk_isXlsx = false;
-            var gk_xlsxFileLookup = {};
-            var gk_fileData = {};
-            function filledCell(cell) {
-                return cell !== '' && cell != null;
-            }
-            function loadFileData(filename) {
-                if (typeof XLSX === 'undefined') {
-                    console.error('Библиотека XLSX не загружена');
-                    showError('Ошибка загрузки данных. Попробуйте перезагрузить страницу.');
-                    return "";
-                }
-                if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-                    try {
-                        var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                        var firstSheetName = workbook.SheetNames[0];
-                        var worksheet = workbook.Sheets[firstSheetName];
-                        var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                        var filteredData = jsonData.filter(row => row.some(filledCell));
-                        var headerRowIndex = filteredData.findIndex((row, index) =>
-                            row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                        );
-                        if (headerRowIndex === -1 || headerRowIndex > 25) {
-                            headerRowIndex = 0;
-                        }
-                        var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex));
-                        csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                        return csv;
-                    } catch (e) {
-                        console.error(e);
-                        showError('Ошибка обработки данных XLSX.');
-                        return "";
-                    }
-                }
-                return gk_fileData[filename] || "";
-            }
+
+            // === УТИЛИТЫ ===
             function isOverlapping(obj1, obj2) {
                 return obj1.x < obj2.x + obj2.width &&
                        obj1.x + obj1.width > obj2.x &&
                        obj1.y < obj2.y + obj2.height &&
                        obj1.y + obj1.height > obj2.y;
             }
+
             function generateSafePosition(size = 20, restrictY = false) {
                 let attempts = 0;
                 let x, y;
                 do {
                     attempts++;
                     x = Math.random() * (canvas.width - size * 2) + size;
-                    if (restrictY) {
-                        y = level === 3 && Math.random() < 0.2 ? 350 + Math.random() * 50 : 510;
-                    } else {
-                        y = Math.random() * (canvas.height - 100 - 70) + 70;
-                    }
-                    if (attempts > 100) {
-                        console.warn('Не удалось найти безопасную позицию для объекта');
-                        return { x: Math.max(100, canvas.width - size * 2), y: platforms[0].y - size };
-                    }
-                } while (isOverlapping({x, y, width: size, height: size}, {x: player.x, y: player.y, width: player.width, height: player.height}) || platforms.some(p => isOverlapping({x, y, width: size, height: size}, p)));
+                    y = restrictY ? (level === 3 && Math.random() < 0.2 ? 350 + Math.random() * 50 : 510) : Math.random() * (canvas.height - 100 - 70) + 70;
+                    if (attempts > 100) return { x: 100, y: platforms[0].y - size };
+                } while (isOverlapping({x, y, width: size, height: size}, player) || platforms.some(p => isOverlapping({x, y, width: size, height: size}, p)));
                 return { x, y };
             }
+
+            function escapeHTML(str) {
+                return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"\'":'&#39;'}[m]));
+            }
+
+            function showError(msg) {
+                errorEl.textContent = escapeHTML(msg);
+                setTimeout(() => errorEl.textContent = '', 5000);
+            }
+
+            function showMessage(text, isCorrect) {
+                messageEl.textContent = escapeHTML(text);
+                messageEl.style.background = isCorrect ? 'rgba(76,175,80,0.5)' : 'rgba(244,67,54,0.5)';
+                messageEl.style.display = 'block';
+                messageTimer = MESSAGE_DURATION;
+            }
+
+            function triggerFlash(type) {
+                flashQueue.push(type);
+                if (flashTimer <= 0) { flashType = flashQueue.shift(); flashTimer = FLASH_DURATION; }
+            }
+
+            function saveGame() {
+                try { localStorage.setItem('gameState', JSON.stringify({ score, level, health })); }
+                catch (e) { showMessage('Сохранение недоступно', false); }
+            }
+
+            // === ФОН ===
             function initStaticBackground() {
                 const grad = staticBgCtx.createLinearGradient(0, 0, 0, staticBgCanvas.height);
-                grad.addColorStop(0, '#81d4fa');
-                grad.addColorStop(1, '#4caf50');
-                staticBgCtx.fillStyle = grad;
-                staticBgCtx.fillRect(0, 0, staticBgCanvas.width, staticBgCanvas.height);
+                grad.addColorStop(0, '#81d4fa'); grad.addColorStop(1, '#4caf50');
+                staticBgCtx.fillStyle = grad; staticBgCtx.fillRect(0, 0, staticBgCanvas.width, staticBgCanvas.height);
             }
+
             function drawBackground() {
                 bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
                 bgCtx.drawImage(staticBgCanvas, 0, 0);
@@ -394,6 +432,7 @@
                     bgCtx.arc((cloudX + 150) % 1000, 40, 60, 0, Math.PI * 2);
                     bgCtx.fill();
                     cloudX += 0.5;
+
                     bgCtx.fillStyle = '#228b22';
                     bgCtx.beginPath();
                     bgCtx.moveTo(0, bgCanvas.height - 50);
@@ -404,40 +443,13 @@
                     bgCtx.lineTo(0, bgCanvas.height);
                     bgCtx.fill();
                     grassWave += 0.05;
+
                     bgCtx.fillStyle = '#2196f3';
                     bgCtx.fillRect(100, bgCanvas.height - 80, 120, 40);
                 }
             }
-            function drawSolarPanels() {
-                ctx.save();
-                ctx.fillStyle = '#2196f3';
-                ctx.fillRect(100, canvas.height - 80, 120, 40);
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 1;
-                for (let j = 0; j < 6; j++) {
-                    for (let k = 0; k < 2; k++) {
-                        const alpha = 0.5 + 0.5 * Math.sin(frameCount * 0.05 + (j + k * 6) * 0.5);
-                        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-                        ctx.fillRect(100 + j * 20, canvas.height - 80 + k * 20, 20, 20);
-                        ctx.strokeRect(100 + j * 20, canvas.height - 80 + k * 20, 20, 20);
-                    }
-                }
-                ctx.restore();
-            }
-            function drawWindmill() {
-                ctx.save();
-                ctx.translate(855, canvas.height - 350);
-                ctx.rotate(frameCount * 0.05);
-                ctx.fillStyle = '#fff';
-                ctx.fillRect(-10, -80, 20, 160);
-                ctx.rotate(Math.PI * 2 / 3);
-                ctx.fillRect(-10, -80, 20, 160);
-                ctx.rotate(Math.PI * 2 / 3);
-                ctx.fillRect(-10, -80, 20, 160);
-                ctx.restore();
-                ctx.fillStyle = '#fff';
-                ctx.fillRect(850, canvas.height - 350, 10, 300);
-            }
+
+            // === РЕНДЕР ===
             function drawPlayer() {
                 ctx.save();
                 ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
@@ -461,6 +473,7 @@
                 ctx.stroke();
                 ctx.restore();
             }
+
             function drawTeacher() {
                 if (!teacher) return;
                 ctx.save();
@@ -494,6 +507,7 @@
                 }
                 if (teacher.lifetime <= 0) teacher = null;
             }
+
             function drawPlatforms() {
                 ctx.save();
                 ctx.shadowBlur = 5;
@@ -502,6 +516,7 @@
                 platforms.forEach(p => ctx.fillRect(p.x, p.y, p.width, p.height));
                 ctx.restore();
             }
+
             function drawCoins() {
                 ctx.save();
                 ctx.shadowBlur = 5;
@@ -528,40 +543,46 @@
                 });
                 ctx.restore();
             }
+
+            // ЗЛЫЕ КРУГЛЫЕ УТЕЧКИ
             function drawMonsters() {
                 ctx.save();
                 ctx.shadowBlur = 5;
                 ctx.shadowColor = 'rgba(0,0,0,0.3)';
                 monsters.forEach(m => {
-                    // Рисуем основной круг (тело)
+                    // Тело — красный круг
                     ctx.fillStyle = '#f44336';
                     ctx.beginPath();
                     ctx.arc(m.x + 20, m.y + 20, 20, 0, Math.PI * 2);
                     ctx.fill();
 
-                    // Рисуем глаза
+                    // Злобные глаза
                     ctx.fillStyle = '#fff';
                     ctx.beginPath();
-                    ctx.arc(m.x + 12, m.y + 15, 5, 0, Math.PI * 2);
-                    ctx.arc(m.x + 28, m.y + 15, 5, 0, Math.PI * 2);
+                    ctx.arc(m.x + 13, m.y + 15, 6, 0, Math.PI * 2);
+                    ctx.arc(m.x + 27, m.y + 15, 6, 0, Math.PI * 2);
                     ctx.fill();
 
-                    // Рисуем зрачки
                     ctx.fillStyle = '#000';
                     ctx.beginPath();
-                    ctx.arc(m.x + 12, m.y + 15, 2, 0, Math.PI * 2);
-                    ctx.arc(m.x + 28, m.y + 15, 2, 0, Math.PI * 2);
+                    ctx.arc(m.x + 15, m.y + 16, 3, 0, Math.PI * 2);
+                    ctx.arc(m.x + 29, m.y + 16, 3, 0, Math.PI * 2);
                     ctx.fill();
 
-                    // Рисуем злой рот
+                    // Зигзаг-рот
                     ctx.strokeStyle = '#000';
-                    ctx.lineWidth = 2;
+                    ctx.lineWidth = 3;
                     ctx.beginPath();
-                    ctx.arc(m.x + 20, m.y + 25, 8, 0, Math.PI);
+                    ctx.moveTo(m.x + 10, m.y + 28);
+                    ctx.lineTo(m.x + 15, m.y + 32);
+                    ctx.lineTo(m.x + 20, m.y + 28);
+                    ctx.lineTo(m.x + 25, m.y + 32);
+                    ctx.lineTo(m.x + 30, m.y + 28);
                     ctx.stroke();
                 });
                 ctx.restore();
             }
+
             function drawPowerups() {
                 ctx.save();
                 ctx.shadowBlur = 5;
@@ -582,77 +603,90 @@
                 });
                 ctx.restore();
             }
+
+            // АГРЕССИВНЫЙ КРУГЛЫЙ БОСС
             function drawBoss() {
                 if (boss) {
                     ctx.save();
-                    ctx.shadowBlur = 5;
-                    ctx.shadowColor = 'rgba(0,0,0,0.3)';
-                    // Тело босса (треугольник)
-                    ctx.fillStyle = '#666';
+                    ctx.shadowBlur = 8;
+                    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                    // Тело
+                    ctx.fillStyle = '#880000';
                     ctx.beginPath();
-                    ctx.moveTo(boss.x + 40, boss.y);
-                    ctx.lineTo(boss.x + 80, boss.y + 80);
-                    ctx.lineTo(boss.x, boss.y + 80);
-                    ctx.closePath();
+                    ctx.arc(boss.x + 40, boss.y + 40, 40, 0, Math.PI * 2);
                     ctx.fill();
 
-                    // Злой глаз босса
-                    ctx.fillStyle = '#f44336';
+                    // Глаза
+                    ctx.fillStyle = '#fff';
                     ctx.beginPath();
-                    ctx.arc(boss.x + 40, boss.y + 30, 15, 0, Math.PI * 2);
+                    ctx.arc(boss.x + 25, boss.y + 30, 10, 0, Math.PI * 2);
+                    ctx.arc(boss.x + 55, boss.y + 30, 10, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#f00';
+                    ctx.beginPath();
+                    ctx.arc(boss.x + 28, boss.y + 32, 5, 0, Math.PI * 2);
+                    ctx.arc(boss.x + 58, boss.y + 32, 5, 0, Math.PI * 2);
                     ctx.fill();
 
-                    // Зрачок
-                    ctx.fillStyle = '#000';
+                    // Клыки
+                    ctx.fillStyle = '#fff';
                     ctx.beginPath();
-                    ctx.arc(boss.x + 40, boss.y + 30, 6, 0, Math.PI * 2);
+                    ctx.moveTo(boss.x + 30, boss.y + 50);
+                    ctx.lineTo(boss.x + 35, boss.y + 60);
+                    ctx.lineTo(boss.x + 40, boss.y + 50);
+                    ctx.lineTo(boss.x + 45, boss.y + 60);
+                    ctx.lineTo(boss.x + 50, boss.y + 50);
                     ctx.fill();
 
-                    // Злой рот
+                    // Рога
                     ctx.strokeStyle = '#000';
-                    ctx.lineWidth = 3;
+                    ctx.lineWidth = 4;
                     ctx.beginPath();
-                    ctx.arc(boss.x + 40, boss.y + 50, 12, 0, Math.PI);
+                    ctx.moveTo(boss.x + 20, boss.y + 10);
+                    ctx.lineTo(boss.x + 15, boss.y);
+                    ctx.moveTo(boss.x + 60, boss.y + 10);
+                    ctx.lineTo(boss.x + 65, boss.y);
                     ctx.stroke();
                     ctx.restore();
                 }
             }
-            function escapeHTML(str) {
-                return str.replace(/[&<>"']/g, match => ({
-                    '&': '&amp;',
-                    '<': '<',
-                    '>': '>',
-                    '"': '&quot;',
-                    "'": '&#39;'
-                }[match]));
-            }
-            function showError(message) {
-                errorEl.textContent = escapeHTML(message);
-                setTimeout(() => errorEl.textContent = '', 5000);
-            }
-            function showMessage(text, isCorrect) {
-                messageEl.textContent = escapeHTML(text);
-                messageEl.style.background = isCorrect ? 'rgba(76, 175, 80, 0.5)' : 'rgba(244, 67, 54, 0.5)';
-                messageEl.style.display = 'block';
-                messageTimer = MESSAGE_DURATION;
-            }
-            function triggerFlash(type) {
-                flashQueue.push(type);
-                if (flashTimer <= 0) {
-                    flashType = flashQueue.shift();
-                    flashTimer = FLASH_DURATION;
+
+            function drawSolarPanels() {
+                ctx.save();
+                ctx.fillStyle = '#2196f3';
+                ctx.fillRect(100, canvas.height - 80, 120, 40);
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 1;
+                for (let j = 0; j < 6; j++) {
+                    for (let k = 0; k < 2; k++) {
+                        const alpha = 0.5 + 0.5 * Math.sin(frameCount * 0.05 + (j + k * 6) * 0.5);
+                        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                        ctx.fillRect(100 + j * 20, canvas.height - 80 + k * 20, 20, 20);
+                        ctx.strokeRect(100 + j * 20, canvas.height - 80 + k * 20, 20, 20);
+                    }
                 }
+                ctx.restore();
             }
-            function saveGame() {
-                try {
-                    localStorage.setItem('gameState', JSON.stringify({ score, level, health }));
-                } catch (e) {
-                    console.warn('Не удалось сохранить игру:', e);
-                    showMessage('Сохранение прогресса недоступно', false);
-                }
+
+            function drawWindmill() {
+                ctx.save();
+                ctx.translate(855, canvas.height - 350);
+                ctx.rotate(frameCount * 0.05);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(-10, -80, 20, 160);
+                ctx.rotate(Math.PI * 2 / 3);
+                ctx.fillRect(-10, -80, 20, 160);
+                ctx.rotate(Math.PI * 2 / 3);
+                ctx.fillRect(-10, -80, 20, 160);
+                ctx.restore();
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(850, canvas.height - 350, 10, 300);
             }
+
+            // === ОБНОВЛЕНИЕ ===
             function update() {
-                if (!gameStarted || gameOver || !isFocused || paused || quizActive) return;
+                if (!gameStarted || gameOver || gameWon || !isFocused || paused || quizActive) return;
+
                 frameCount++;
                 lastFrameTime = performance.now();
                 if (shieldActive) {
@@ -668,34 +702,43 @@
                     player.scale = Math.max(1, player.scale - 0.00667);
                     if (player.scaleTimer <= 0) player.scale = 1;
                 }
+
+                let coinRemoved = false;
                 coins = coins.filter(c => {
                     c.lifetime--;
                     if (c.lifetime <= 0) {
-                        spawnCoin();
+                        coinRemoved = true;
                         return false;
                     }
                     if (isOverlapping({x: player.x, y: player.y, width: player.width, height: player.height}, {x: c.x - 15, y: c.y - 15, width: 30, height: 30})) {
                         score += level >= 3 ? 20 : 15;
                         player.scale = 1.2;
                         player.scaleTimer = PLAYER_SCALE_DURATION;
-                        console.log(`Монета собрана, очки: ${score}, масштаб игрока: ${player.scale}`);
                         triggerFlash('coin');
+                        coinRemoved = true;
                         return false;
                     }
                     return true;
                 });
+                if (coinRemoved) spawnCoin();  // Гарантированный респавн
+
                 monsters = monsters.filter(m => {
                     m.lifetime--;
                     if (m.lifetime <= 0) return false;
                     if (!shieldActive && isOverlapping({x: player.x, y: player.y, width: player.width, height: player.height}, {x: m.x, y: m.y, width: 40, height: 40})) {
                         health -= 10;
                         triggerFlash('hit');
-                        if (health <= 0) gameOver = true;
+                        if (health <= 0) {
+                            health = 0;
+                            gameOver = true;
+                            endScreenShown = false;
+                        }
                         updateUI();
                         return false;
                     }
                     return true;
                 });
+
                 powerups = powerups.filter(p => {
                     if (isOverlapping({x: player.x, y: player.y, width: player.width, height: player.height}, {x: p.x - 15, y: p.y - 15, width: 30, height: 30})) {
                         health = Math.min(100, health + 25);
@@ -707,22 +750,30 @@
                     }
                     return true;
                 });
+
+                // АГРЕССИВНЫЙ БОСС
                 if (boss && !shieldActive && isOverlapping({x: player.x, y: player.y, width: player.width, height: player.height}, {x: boss.x, y: boss.y, width: boss.width, height: boss.height})) {
                     health -= level === 4 ? 15 : 20;
                     boss.hits = (boss.hits || 0) + 1;
                     triggerFlash('hit');
-                    if (boss.hits === 1) boss.dir *= 1.15;
+                    boss.dir *= 1.3; // Ускорение
                     if (boss.hits === 2) {
                         spawnMonster();
                         spawnMonster();
+                        spawnMonster();
                     }
-                    if (health <= 0) gameOver = true;
+                    if (health <= 0) {
+                        health = 0;
+                        gameOver = true;
+                        endScreenShown = false;
+                    }
                     updateUI();
                     if (boss.hits >= 3) {
                         showMessage('Босс побеждён!', true);
                         boss = null;
                     }
                 }
+
                 player.vy += GRAVITY;
                 player.y += player.vy;
                 player.y = Math.max(0, Math.min(player.y, canvas.height - player.height));
@@ -733,13 +784,19 @@
                 if (player.y === 0 && player.vy < 0) {
                     player.vy = -player.vy * 0.5;
                 }
-                // Обновленные проверки клавиш
-                if ((keys['ArrowLeft'] || keys['KeyA']) && player.x > 0) player.x -= 8;
-                if ((keys['ArrowRight'] || keys['KeyD']) && player.x < canvas.width - player.width) player.x += 8;
-                if ((keys['Space'] || keys['KeyW']) && !player.jumping) {
+
+                // WASD + стрелки
+                const left = keys['ArrowLeft'] || keys['KeyA'];
+                const right = keys['ArrowRight'] || keys['KeyD'];
+                const jump = keys['Space'] || keys['KeyW'];
+
+                if (left && player.x > 0) player.x -= 8;
+                if (right && player.x < canvas.width - player.width) player.x += 8;
+                if (jump && !player.jumping) {
                     player.vy = -15;
                     player.jumping = true;
                 }
+
                 platforms.forEach(p => {
                     if (isOverlapping({ x: player.x, y: player.y, width: player.width, height: player.height }, p)) {
                         if (player.vy > 0 && player.y + player.height > p.y && player.y + player.height < p.y + p.height + COLLISION_TOLERANCE && player.x + player.width > p.x && player.x < p.x + p.width) {
@@ -749,6 +806,7 @@
                         }
                     }
                 });
+
                 const monsterSpeed = level === 1 ? 2.5 : level === 2 ? 3.5 : level === 3 ? 4 : level === 4 ? 4.5 : level === 5 ? 5 : 5.5;
                 monsters.forEach(m => {
                     m.x += m.dir * monsterSpeed;
@@ -774,42 +832,46 @@
                         if (Math.random() < 0.1) m.vy = -12;
                     }
                 });
+
                 if (boss) {
-                    boss.x += boss.dir * (1.2 + level * 0.15);
+                    boss.x += boss.dir * (1.5 + level * 0.2); // +30% скорости
                     if (boss.x < 0 || boss.x > canvas.width - boss.width) boss.dir *= -1;
                     boss.lifetime--;
                     if (boss.lifetime <= 0) {
                         showMessage('Босс отступил!', true);
                         boss = null;
                     }
-                    if (frameCount % (level === 4 ? 40 : 30) === 0) spawnMonster();
+                    // Спавн монстров чаще
+                    if (frameCount % (level === 4 ? 20 : 25) === 0) {
+                        spawnMonster();
+                        if (Math.random() < 0.4) spawnMonster();
+                    }
                 }
-                // Обновленные вероятности появления
-                const coinProb = 0.015 / (1 + level * 0.15);
-                const monsterProb = 0.0025 * (1 + level * 0.3);
-                const powerupProb = 0.001 / (1 + level * 0.4);
-                const bossProb = level >= 4 ? 0.0015 * (1 + (level - 3) * 0.4) : 0;
 
-                if (Math.random() < coinProb) spawnCoin();
-                if (Math.random() < monsterProb && monsters.length < MAX_MONSTERS) spawnMonster();
-                if (Math.random() < powerupProb) spawnPowerup();
-                if (level >= 4 && !boss && Math.random() < bossProb) {
+                // МОНЕТЫ ЕЩЁ РЕЖЕ
+                if (Math.random() < 0.012 / (1 + level * 0.1)) spawnCoin();
+                if (Math.random() < 0.0025 * (1 + level * 0.3) && monsters.length < MAX_MONSTERS) spawnMonster();
+                if (Math.random() < 0.001 / (1 + level * 0.4)) spawnPowerup();
+
+                // БОСС РАНЬШЕ
+                const bossMinScore = level === 4 ? 400 : level === 5 ? 600 : 0;
+                if (level >= 4 && !boss && score >= bossMinScore && Math.random() < 0.003 * (1 + (level - 3) * 0.4)) {
                     const pos = generateSafePosition(80, level <= 3);
                     if (pos) boss = { x: pos.x, y: pos.y, width: 80, height: 80, dir: Math.random() > 0.5 ? 1 : -1, lifetime: BOSS_LIFETIME[level] || 1200, hits: 0 };
                 }
+
                 const nextLevelThreshold = level === 1 ? 150 : level === 2 ? 300 : level === 3 ? 500 : level === 4 ? 700 : level === 5 ? 900 : 99999;
                 const quizThreshold = level === 1 ? 112 : level === 2 ? 225 : level === 3 ? 375 : level === 4 ? 525 : level === 5 ? 675 : 99999;
                 if (!quizTriggered && score >= quizThreshold && !finalQuiz && !quizActive && level < MAX_LEVEL) {
                     quizTriggered = true;
                     startQuiz();
-                    console.log(`Викторина на уровне ${level}, очки: ${score}`);
                 }
                 if (score >= nextLevelThreshold && level < MAX_LEVEL) {
                     level++;
                     quizTriggered = false;
                     updateLevel();
-                    console.log(`Уровень повышен до ${level}`);
                 }
+
                 if (score >= 1000 && !finalQuiz && !quizActive) {
                     finalQuiz = true;
                     quizActive = true;
@@ -827,10 +889,11 @@
                     quizTimerFill.parentElement.classList.remove('warning');
                     const pos = generateSafePosition(50, level <= 3);
                     if (pos) teacher = { x: pos.x, y: pos.y, lifetime: TEACHER_LIFETIME };
-                    console.log('Финальная викторина запущена, quizTimer: 15000ms');
                 }
+
                 updateUI();
             }
+
             function updateUI() {
                 if (score !== lastScore) {
                     scoreEl.textContent = `Очки: ${escapeHTML(score.toString())}`;
@@ -846,6 +909,7 @@
                     lastHealth = health;
                 }
             }
+
             function render() {
                 if (!gameStarted || !ctx) return;
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -879,17 +943,15 @@
                     startAnimationTimer--;
                 }
             }
+
             function gameLoop(timestamp) {
                 if (!gameStarted) return;
-                if (!quizActive && !paused && timestamp - lastFrameTime > 10000 && endScreen.style.display !== 'block' && winScreen.style.display !== 'block') {
-                    console.log('Игра перезапущена из-за неактивности');
-                    restartGame();
-                    return;
-                }
+
                 if (messageTimer > 0) {
                     messageTimer--;
                     if (messageTimer <= 0) messageEl.style.display = 'none';
                 }
+
                 if (quizActive) {
                     quizTimer -= 1000 / 60;
                     quizTimer = Math.max(0, quizTimer);
@@ -904,11 +966,12 @@
                         if (finalQuiz) {
                             health -= 20;
                             if (health <= 0) {
+                                health = 0;
                                 gameOver = true;
+                                endScreenShown = false;
                                 quizEl.style.display = 'none';
                                 quizActive = false;
                                 finalQuiz = false;
-                                showEndScreen();
                             }
                             showMessage(`Время вышло! Энергия -20. Попробуйте снова.`, false);
                             updateUI();
@@ -929,12 +992,18 @@
                         lastTime = timestamp;
                     }
                 }
-                if (gameOver) {
+
+                if (gameOver && !endScreenShown) {
                     showEndScreen();
-                    console.log('Игра окончена, очки:', score);
+                    endScreenShown = true;
+                }
+                if (gameWon && !winScreenShown) {
+                    winScreen.style.display = 'block';
+                    winScreenShown = true;
                 }
                 requestAnimationFrame(gameLoop);
             }
+
             function spawnCoin() {
                 if (coins.length >= MAX_COINS) return;
                 const pos = generateSafePosition(15);
@@ -943,21 +1012,25 @@
                     coins.push(pos);
                 }
             }
+
             function spawnMonster() {
                 if (monsters.length >= MAX_MONSTERS) return;
                 const pos = generateSafePosition(40, level <= 3);
                 if (pos) monsters.push({ ...pos, dir: Math.random() > 0.5 ? 1 : -1, lifetime: Math.floor(Math.random() * (MONSTER_LIFETIME_MAX - MONSTER_LIFETIME_MIN)) + MONSTER_LIFETIME_MIN, vy: 0 });
             }
+
             function spawnPowerup() {
                 if (powerups.length >= MAX_POWERUPS) return;
                 const pos = generateSafePosition(15);
                 if (pos) powerups.push(pos);
             }
+
             function resetQuizIndices() {
                 usedQuizIndices = [];
             }
+
             function startQuiz() {
-                if (!gameStarted || gameOver || finalQuiz || quizActive) return;
+                if (!gameStarted || gameOver || gameWon || finalQuiz || quizActive) return;
                 quizActive = true;
                 quizCount++;
                 quizTitle.textContent = 'Викторина по энергосбережению!';
@@ -983,13 +1056,13 @@
                 quizTimerFill.parentElement.classList.remove('warning');
                 const pos = generateSafePosition(50, level <= 3);
                 if (pos) teacher = { x: pos.x, y: pos.y, lifetime: TEACHER_LIFETIME };
-                console.log(`Викторина начата, quizTimer: ${QUIZ_DURATION}ms, score: ${score}, health: ${health}`);
                 [option1, option2, option3, skipQuiz].forEach((btn, i) => {
                     btn.classList.remove('show');
                     btn.disabled = false;
                     setTimeout(() => btn.classList.add('show'), i * 100);
                 });
             }
+
             function checkAnswer(index) {
                 if (!quizActive) return;
                 const button = [option1, option2, option3][index];
@@ -998,9 +1071,11 @@
                     button.classList.remove('clicked');
                     [option1, option2, option3, skipQuiz].forEach(btn => btn.disabled = false);
                 }, 200);
+
                 if (index === currentQuiz.correct) {
                     score += finalQuiz ? 100 : level >= 4 ? 100 : 75;
                     showMessage(`Правильно! ${currentQuiz.fact}`, true);
+
                     if (!finalQuiz) {
                         quizEl.style.display = 'none';
                         quizActive = false;
@@ -1010,33 +1085,32 @@
                         spawnPowerup();
                         teacher = null;
                     }
+
                     if (finalQuiz) {
                         quizEl.style.display = 'none';
                         quizActive = false;
+                        finalQuiz = false;
                         quizTimer = 0;
                         [option1, option2, option3, skipQuiz].forEach(btn => btn.disabled = true);
-                        gameOver = true;
-                        winScreen.style.display = 'block';
-                        finalQuiz = false;
-                        startAnimationTimer = 0;
+                        teacher = null;
+                        gameWon = true;
+                        winScreenShown = false;
                         saveGame();
                     }
                 } else {
                     if (finalQuiz) {
                         health -= 20;
+                        if (health <= 0) {
+                            health = 0;
+                            gameOver = true;
+                            endScreenShown = false;
+                        }
                         showMessage(`Неправильно! Энергия -20. ${currentQuiz.fact}`, false);
                         updateUI();
                         quizTimer = QUIZ_DURATION;
                         quizTimerFill.style.width = '100%';
                         quizTimerText.textContent = 'Осталось: 15 сек';
                         quizTimerFill.parentElement.classList.remove('warning');
-                        if (health <= 0) {
-                            gameOver = true;
-                            quizEl.style.display = 'none';
-                            quizActive = false;
-                            finalQuiz = false;
-                            showEndScreen();
-                        }
                     } else {
                         quizEl.style.display = 'none';
                         quizActive = false;
@@ -1044,11 +1118,9 @@
                         [option1, option2, option3, skipQuiz].forEach(btn => btn.disabled = true);
                         health -= 10;
                         if (health <= 0) {
+                            health = 0;
                             gameOver = true;
-                            quizEl.style.display = 'none';
-                            quizActive = false;
-                            finalQuiz = false;
-                            showEndScreen();
+                            endScreenShown = false;
                         }
                         showMessage(`Неправильно. ${currentQuiz.fact}`, false);
                         spawnMonster();
@@ -1057,11 +1129,12 @@
                         updateUI();
                     }
                 }
+
                 lastTime = performance.now();
                 update();
                 render();
-                console.log(`Ответ выбран, quizActive: ${quizActive}, score: ${score}, health: ${health}`);
             }
+
             function skipQuizFn() {
                 if (!quizActive || finalQuiz) return;
                 quizEl.style.display = 'none';
@@ -1072,20 +1145,18 @@
                     [option1, option2, option3, skipQuiz].forEach(btn => btn.disabled = false);
                 }, 500);
                 health -= 15;
-                updateUI();
                 if (health <= 0) {
+                    health = 0;
                     gameOver = true;
-                    quizEl.style.display = 'none';
-                    quizActive = false;
-                    finalQuiz = false;
-                    showEndScreen();
+                    endScreenShown = false;
                 }
+                updateUI();
                 teacher = null;
                 lastTime = performance.now();
                 update();
                 render();
-                console.log(`Викторина пропущена, quizActive: ${quizActive}, score: ${score}, health: ${health}`);
             }
+
             function updateLevel() {
                 platforms.length = 0;
                 platforms.push(
@@ -1100,6 +1171,7 @@
                 if (level >= 6) platforms.push({ x: 800, y: 280, width: 150, height: 25 }, { x: 300, y: 350, width: 150, height: 25 });
                 if (level === 3 || level === 5) spawnPowerup();
             }
+
             function showEndScreen() {
                 finalScoreEl.textContent = escapeHTML(score.toString());
                 let highScore = 0;
@@ -1116,8 +1188,10 @@
                 }
                 highScoreEl.textContent = escapeHTML(highScore.toString());
                 endScreen.style.display = 'block';
+                winScreen.style.display = 'none';
                 saveGame();
             }
+
             function togglePause() {
                 paused = !paused;
                 pauseScreen.style.display = paused ? 'block' : 'none';
@@ -1126,11 +1200,12 @@
                 }
                 lastTime = performance.now();
             }
+
             function startGame() {
                 gameStarted = true;
                 introScreen.style.display = 'none';
                 spawnCoin();
-                spawnCoin();
+                spawnCoin();  // 2 монеты на старте
                 spawnMonster();
                 spawnPowerup();
                 drawBackground();
@@ -1139,8 +1214,11 @@
                 lastFrameTime = performance.now();
                 lastTime = performance.now();
                 startAnimationTimer = 60;
+                endScreenShown = false;
+                winScreenShown = false;
                 requestAnimationFrame(gameLoop);
             }
+
             function restartGame() {
                 endScreen.style.display = 'none';
                 winScreen.style.display = 'none';
@@ -1157,6 +1235,9 @@
                 health = 100;
                 lastHealth = -1;
                 gameOver = false;
+                gameWon = false;
+                endScreenShown = false;
+                winScreenShown = false;
                 paused = false;
                 quizTriggered = false;
                 quizCount = 0;
@@ -1176,68 +1257,48 @@
                 spawnMonster();
                 spawnPowerup();
                 drawBackground();
-                console.log('Игра перезапущена');
                 gameStarted = false;
                 startGame();
             }
+
             function addTouchControls() {
-                // Удаляем старые обработчики, чтобы избежать дублирования
                 touchLeft.removeEventListener('touchstart', handleTouchLeftStart);
                 touchLeft.removeEventListener('touchend', handleTouchLeftEnd);
                 touchRight.removeEventListener('touchstart', handleTouchRightStart);
                 touchRight.removeEventListener('touchend', handleTouchRightEnd);
                 touchJump.removeEventListener('touchstart', handleTouchJumpStart);
                 touchJump.removeEventListener('touchend', handleTouchJumpEnd);
-                // Обработчики для кнопки влево
-                function handleTouchLeftStart() { keys['ArrowLeft'] = true; }
-                function handleTouchLeftEnd() { keys['ArrowLeft'] = false; }
-                // Обработчики для кнопки вправо
-                function handleTouchRightStart() { keys['ArrowRight'] = true; }
-                function handleTouchRightEnd() { keys['ArrowRight'] = false; }
-                // Обработчики для кнопки прыжка
+
+                function handleTouchLeftStart() { keys['ArrowLeft'] = true; keys['KeyA'] = true; }
+                function handleTouchLeftEnd() { keys['ArrowLeft'] = false; keys['KeyA'] = false; }
+                function handleTouchRightStart() { keys['ArrowRight'] = true; keys['KeyD'] = true; }
+                function handleTouchRightEnd() { keys['ArrowRight'] = false; keys['KeyD'] = false; }
                 function handleTouchJumpStart() { 
-                    if (!player.jumping) {
-                        keys['Space'] = true;
-                        setTimeout(() => { keys['Space'] = false; }, 100); // Имитация кратковременного нажатия
-                    }
+                    keys['Space'] = true; keys['KeyW'] = true;
+                    setTimeout(() => { keys['Space'] = false; keys['KeyW'] = false; }, 100);
                 }
-                function handleTouchJumpEnd() { keys['Space'] = false; }
-                // Добавляем новые обработчики
+
                 touchLeft.addEventListener('touchstart', handleTouchLeftStart);
                 touchLeft.addEventListener('touchend', handleTouchLeftEnd);
                 touchRight.addEventListener('touchstart', handleTouchRightStart);
                 touchRight.addEventListener('touchend', handleTouchRightEnd);
                 touchJump.addEventListener('touchstart', handleTouchJumpStart);
-                touchJump.addEventListener('touchend', handleTouchJumpEnd);
             }
-            // Обработчики событий
+
+            // === СОБЫТИЯ ===
             document.addEventListener('keydown', e => {
-                if (e.code === 'KeyP' && gameStarted && !gameOver && !quizActive) {
-                    togglePause();
-                }
-                if (!quizActive) {
-                    keys[e.code] = true;
-                }
+                if (e.code === 'KeyP' && gameStarted && !gameOver && !gameWon && !quizActive) togglePause();
+                keys[e.code] = true;
             });
-            document.addEventListener('keyup', e => {
-                keys[e.code] = false;
-            });
+            document.addEventListener('keyup', e => keys[e.code] = false);
             option1.addEventListener('click', () => checkAnswer(0));
             option2.addEventListener('click', () => checkAnswer(1));
             option3.addEventListener('click', () => checkAnswer(2));
             skipQuiz.addEventListener('click', skipQuizFn);
-            window.addEventListener('focus', () => {
-                isFocused = true;
-                lastFrameTime = performance.now();
-                lastTime = performance.now();
-            });
-            window.addEventListener('blur', () => {
-                isFocused = false;
-                if (!paused && gameStarted && !quizActive && !gameOver) {
-                    togglePause();
-                }
-            });
-            // Инициализация
+            window.addEventListener('focus', () => { isFocused = true; lastFrameTime = performance.now(); });
+            window.addEventListener('blur', () => { isFocused = false; if (!paused && gameStarted && !quizActive && !gameOver && !gameWon) togglePause(); });
+
+            // === ИНИЦИАЛИЗАЦИЯ ===
             addTouchControls();
             initStaticBackground();
             drawBackground();
