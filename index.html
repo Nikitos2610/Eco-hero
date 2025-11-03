@@ -246,9 +246,9 @@
     <script type="text/javascript">
         // === КОНСТАНТЫ ===
         const MAX_LEVEL = 6;
-        const MAX_COINS = 5;  // Ещё меньше (было 7)
-        const MAX_MONSTERS = 7;
-        const MAX_POWERUPS = 3;
+        const MAX_COINS = 3;  // Уменьшено с 5 до 3
+        const MAX_MONSTERS = 4;  // Уменьшено с 7 до 4
+        const MAX_POWERUPS = 2;  // Уменьшено с 3 до 2
         const QUIZ_DURATION = 15000;
         const GRAVITY = 0.4;
         const COIN_LIFETIME = 600;
@@ -840,10 +840,12 @@
                 }
             }
 
-            // МОНЕТЫ ЕЩЁ РЕЖЕ
-            if (Math.random() < 0.008 / (1 + level * 0.1)) spawnCoin();  // Спавн ещё реже (было 0.012)
-            if (Math.random() < 0.0025 * (1 + level * 0.3) && monsters.length < MAX_MONSTERS) spawnMonster();
-            if (Math.random() < 0.001 / (1 + level * 0.4)) spawnPowerup();
+            // Увеличена частота спавна монет (было 0.008, теперь 0.02 — в 2.5 раза чаще)
+            if (Math.random() < 0.02 / (1 + level * 0.1)) spawnCoin();
+            // Монстры: было 0.0025, теперь 0.006 (в 2.4 раза чаще)
+            if (Math.random() < 0.006 * (1 + level * 0.3) && monsters.length < MAX_MONSTERS) spawnMonster();
+            // Пауэрапы: было 0.001, теперь 0.003 (в 3 раза чаще)
+            if (Math.random() < 0.003 / (1 + level * 0.4)) spawnPowerup();
 
             const bossMinScore = level === 4 ? 400 : level === 5 ? 600 : 0;
             if (level >= 4 && !boss && score >= bossMinScore && Math.random() < 0.003 * (1 + (level - 3) * 0.4)) {
@@ -1195,7 +1197,7 @@
         function startGame() {
             gameStarted = true;
             introScreen.style.display = 'none';
-            spawnCoin();  // Только 1 монета на старте (было 2)
+            spawnCoin();  // 1 монета на старте
             spawnMonster();
             spawnPowerup();
             drawBackground();
@@ -1257,7 +1259,6 @@
             touchRight.removeEventListener('touchstart', handleTouchRightStart);
             touchRight.removeEventListener('touchend', handleTouchRightEnd);
             touchJump.removeEventListener('touchstart', handleTouchJumpStart);
-            // Removed: touchJump.removeEventListener('touchend', handleTouchJumpEnd); // This line caused the error
 
             function handleTouchLeftStart() { keys['ArrowLeft'] = true; keys['KeyA'] = true; }
             function handleTouchLeftEnd() { keys['ArrowLeft'] = false; keys['KeyA'] = false; }
